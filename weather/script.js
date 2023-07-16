@@ -1,103 +1,75 @@
-const cityInput = document.querySelector(".city-input");
-const searchButton = document.querySelector(".search-btn");
-const locationButton = document.querySelector(".location-btn");
-const currentWeatherDiv = document.querySelector(".current-weather");
-const weatherCardsDiv = document.querySelector(".weather-cards");
-
-const API_KEY = "9329064f69e7456bc783a0a61592d833"; // API key for OpenWeatherMap API
-
-const createWeatherCard = (cityName, weatherItem, index) => {
-    if(index === 0) { // HTML for the main weather card
-        return `<div class="details">
-                    <h2>${cityName} (${weatherItem.dt_txt.split(" ")[0]})</h2>
-                    <h6>Temperature: ${(weatherItem.main.temp - 273.15).toFixed(2)}°C</h6>
-                    <h6>Wind: ${weatherItem.wind.speed} M/S</h6>
-                    <h6>Humidity: ${weatherItem.main.humidity}%</h6>
-                </div>
-                <div class="icon">
-                    <img src="https://openweathermap.org/img/wn/${weatherItem.weather[0].icon}@4x.png" alt="weather-icon">
-                    <h6>${weatherItem.weather[0].description}</h6>
-                </div>`;
-    } else { // HTML for the other five day forecast card
-        return `<li class="card">
-                    <h3>(${weatherItem.dt_txt.split(" ")[0]})</h3>
-                    <img src="https://openweathermap.org/img/wn/${weatherItem.weather[0].icon}@4x.png" alt="weather-icon">
-                    <h6>Temp: ${(weatherItem.main.temp - 273.15).toFixed(2)}°C</h6>
-                    <h6>Wind: ${weatherItem.wind.speed} M/S</h6>
-                    <h6>Humidity: ${weatherItem.main.humidity}%</h6>
-                </li>`;
-    }
-}
-
-const getWeatherDetails = (cityName, latitude, longitude) => {
-    const WEATHER_API_URL = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${API_KEY}`;
-
-    fetch(WEATHER_API_URL).then(response => response.json()).then(data => {
-        // Filter the forecasts to get only one forecast per day
-        const uniqueForecastDays = [];
-        const fiveDaysForecast = data.list.filter(forecast => {
-            const forecastDate = new Date(forecast.dt_txt).getDate();
-            if (!uniqueForecastDays.includes(forecastDate)) {
-                return uniqueForecastDays.push(forecastDate);
-            }
+// Function to retrieve weather data for a specific city
+function getWeather(city) {
+    const apiKey = 'c20925545257cec1439f5bfcf3f30ea9'; // Replace with your OpenWeatherMap API key
+    const apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+  
+    // Make a GET request to the API
+    fetch(apiUrl)
+      .then(response => response.json())
+      .then(data => {
+        // Extract the necessary weather information from the API response
+        const weather = {
+          temperature: data.main.temp,
+          windSpeed: data.wind.speed,
+          humidity: data.main.humidity
+        };
+  
+        // Display the current weather information in the HTML elements
+        const cityHeading = document.querySelector('.current-weather h2');
+        const temperature = document.querySelector('.current-weather h6:nth-of-type(1)');
+        const wind = document.querySelector('.current-weather h6:nth-of-type(2)');
+        const humidity = document.querySelector('.current-weather h6:nth-of-type(3)');
+  
+        cityHeading.textContent = `${data.name} (${data.sys.country})`;
+        temperature.textContent = `Temperature: ${weather.temperature}°C`;
+        wind.textContent = `Wind: ${weather.windSpeed} M/S`;
+        humidity.textContent = `Humidity: ${weather.humidity}%`;
+  
+        // Fetch the 5-day forecast for the city
+        const forecastApiUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${apiKey}&units=metric`;
+        return fetch(forecastApiUrl);
+      })
+      .then(response => response.json())
+      .then(forecastData => {
+        // Extract the necessary forecast information from the API response
+        const forecastItems = forecastData.list.slice(0, 5); // Get the first 5 forecast items
+  
+        // Display the 5-day forecast information in the HTML elements
+        const weatherCards = document.querySelector('.weather-cards');
+        weatherCards.innerHTML = '';
+  
+        forecastItems.forEach(item => {
+          const forecastCard = document.createElement('li');
+          forecastCard.classList.add('card');
+          forecastCard.innerHTML = `
+            <h3>${item.dt_txt.split(' ')[0]}</h3>
+            <h6>Temp: ${item.main.temp}°C</h6>
+            <h6>Wind: ${item.wind.speed} M/S</h6>
+            <h6>Humidity: ${item.main.humidity}%</h6>
+          `;
+          weatherCards.appendChild(forecastCard);
         });
-
-        // Clearing previous weather data
-        cityInput.value = "";
-        currentWeatherDiv.innerHTML = "";
-        weatherCardsDiv.innerHTML = "";
-
-        // Creating weather cards and adding them to the DOM
-        fiveDaysForecast.forEach((weatherItem, index) => {
-            const html = createWeatherCard(cityName, weatherItem, index);
-            if (index === 0) {
-                currentWeatherDiv.insertAdjacentHTML("beforeend", html);
-            } else {
-                weatherCardsDiv.insertAdjacentHTML("beforeend", html);
-            }
-        });        
-    }).catch(() => {
-        alert("An error occurred while fetching the weather forecast!");
-    });
-}
-
-const getCityCoordinates = () => {
-    const cityName = cityInput.value.trim();
-    if (cityName === "") return;
-    const API_URL = `https://api.openweathermap.org/geo/1.0/direct?q=${cityName}&limit=1&appid=${API_KEY}`;
-    
-    // Get entered city coordinates (latitude, longitude, and name) from the API response
-    fetch(API_URL).then(response => response.json()).then(data => {
-        if (!data.length) return alert(`No coordinates found for ${cityName}`);
-        const { lat, lon, name } = data[0];
-        getWeatherDetails(name, lat, lon);
-    }).catch(() => {
-        alert("An error occurred while fetching the coordinates!");
-    });
-}
-
-const getUserCoordinates = () => {
-    navigator.geolocation.getCurrentPosition(
-        position => {
-            const { latitude, longitude } = position.coords; // Get coordinates of user location
-            // Get city name from coordinates using reverse geocoding API
-            const API_URL = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
-            fetch(API_URL).then(response => response.json()).then(data => {
-                const { name } = data[0];
-                getWeatherDetails(name, latitude, longitude);
-            }).catch(() => {
-                alert("An error occurred while fetching the city name!");
-            });
-        },
-        error => { // Show alert if user denied the location permission
-            if (error.code === error.PERMISSION_DENIED) {
-                alert("Geolocation request denied. Please reset location permission to grant access again.");
-            } else {
-                alert("Geolocation request error. Please reset location permission.");
-            }
-        });
-}
-
-locationButton.addEventListener("click", getUserCoordinates);
-searchButton.addEventListener("click", getCityCoordinates);
-cityInput.addEventListener("keyup", e => e.key === "Enter" && getCityCoordinates());
+      })
+      .catch(error => {
+        // Display an error message if there's an issue with the API request
+        console.log('Error:', error);
+      });
+  }
+  
+  // Function to handle the search button click
+  function handleSearch() {
+    const cityInput = document.querySelector('.city-input');
+    const city = cityInput.value;
+    getWeather(city);
+  }
+  
+  // Load the weather data for the assigned city when the page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    const assignedCity = 'Ozark'; // Replace with your assigned city
+    getWeather(assignedCity);
+  });
+  
+  // Add event listener to the search button
+  const searchButton = document.querySelector('.search-btn');
+  searchButton.addEventListener('click', handleSearch);
+  
